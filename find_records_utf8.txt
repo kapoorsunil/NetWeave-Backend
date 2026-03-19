@@ -1,0 +1,84 @@
+﻿
+--- SEARCHING FOR SPECIFIC IDs ---
+
+Found ID 69b7f9869b8e7366e332bf03 in collection: withdrawrequests
+{
+  "_id": "69b7f9869b8e7366e332bf03",
+  "walletAddress": "0x77284AaFe001B4b6eB34Dd02E56ECCaD4022BF86",
+  "amount": 0.1,
+  "userAmount": 0.094525,
+  "feeAmount": 0.000475,
+  "platformFeeAmount": 0.005,
+  "status": "confirmed",
+  "payoutCurrency": "usdc",
+  "userTxHash": "0xbfe790faac53ca3794f2adc1e014c67f1bbab1c075d01aad305209d662d22493",
+  "feeTxHash": "0x8167577eb46da9c7ba5a366b1ebb608c9998ced1ffd1eee09de873c5ba8a07ac",
+  "otpVerified": false,
+  "createdAt": "2026-03-16T12:37:26.946Z",
+  "updatedAt": "2026-03-16T12:37:34.507Z",
+  "__v": 0
+}
+
+Found ID 69b7fd459b8e7366e332bf4f in collection: withdrawrequests
+{
+  "_id": "69b7fd459b8e7366e332bf4f",
+  "walletAddress": "0x77284AaFe001B4b6eB34Dd02E56ECCaD4022BF86",
+  "amount": 0.1,
+  "userAmount": 0.094525,
+  "feeAmount": 0.000475,
+  "platformFeeAmount": 0.005,
+  "status": "confirmed",
+  "payoutCurrency": "usdc",
+  "userTxHash": "0x434cfa24c90c21462a3e8110cdcbf3a420193a9d0aca4db5df482dd46afaa7b3",
+  "feeTxHash": "0xdf95893ba2e473b209d2340c0cf957a39349946f0e057a53fd193bc05689cdaa",
+  "otpVerified": false,
+  "createdAt": "2026-03-16T12:53:25.929Z",
+  "updatedAt": "2026-03-16T12:53:34.840Z",
+  "__v": 0
+}
+
+Found ID 69b8082e102b3b5bb1df7835 in collection: withdrawrequests
+{
+  "_id": "69b8082e102b3b5bb1df7835",
+  "walletAddress": "0xA36a43c3C537fe48Ec604d4037F4d9220b1a5d32",
+  "amount": 1,
+  "userAmount": 0.94525,
+  "feeAmount": 0.00475,
+  "platformFeeAmount": 0.05,
+  "status": "confirmed",
+  "payoutCurrency": "usdc",
+  "userTxHash": "0x4b1ba9341ec73b771137b186304a4cc9b7ef942d0fbfc8c1fbaf0cd95ff926c8",
+  "feeTxHash": "0x91dbae420accebc60e0459728efe9ee9e25b279d9de5cc6a6df175d479268d4c",
+  "otpVerified": false,
+  "createdAt": "2026-03-16T13:39:58.909Z",
+  "updatedAt": "2026-03-16T13:40:10.746Z",
+  "__v": 0
+}
+
+Found ID 69b812ad0bf04dc262ffcc4f in collection: withdrawrequests
+{
+  "_id": "69b812ad0bf04dc262ffcc4f",
+  "walletAddress": "0x8B315Fd5F84007196BF1b4CD656bAbf7c13FD7F6",
+  "amount": 10,
+  "userAmount": 9.4525,
+  "feeAmount": 0.0475,
+  "platformFeeAmount": 0.5,
+  "status": "confirmed",
+  "payoutCurrency": "usdc",
+  "userTxHash": "0x15bc469b4036a6dfbd799478b3402b6ccae799a8e5f23f517a3dfd840bd4dcd9",
+  "feeTxHash": "0x494f40674172030371520e763481c47002e694b7d9b19005d73bc796da2ed728",
+  "otpVerified": false,
+  "createdAt": "2026-03-16T14:24:45.793Z",
+  "updatedAt": "2026-03-16T14:24:56.092Z",
+  "__v": 0
+}
+
+
+--- SEARCHING FOR ANY NEGATIVE VALUES ---
+
+Found 5 negative records in: users
+  - Wallet: 0x8479Ec17E4ee77b9d174348f665460859B8F4f14 | Referral: -18 | Main: 230.01 | ID: 69b2b02c6f7147fa6473f4e4
+  - Wallet: 0x0000000000000000000000000000000000000008 | Referral: -0.25 | Main: 0 | ID: 69b2b02c6f7147fa6473f4ec
+  - Wallet: 0x0000000000000000000000000000000000000013 | Referral: -0.25 | Main: 0 | ID: 69b2b02c6f7147fa6473f4f7
+  - Wallet: 0x0000000000000000000000000000000000000014 | Referral: -0.25 | Main: 0 | ID: 69b2b02c6f7147fa6473f4f8
+  - Wallet: 0xC64A0728049738091Ab64352019F4FDD7286E5aD | Referral: -1 | Main: 0 | ID: 69b2c84ca6cf8045ba55e8ea

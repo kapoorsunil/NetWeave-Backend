@@ -1,6 +1,21 @@
 import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
 
 dotenv.config()
+
+// Ensure the PORT value from .env is honored even if the environment already defines PORT.
+// This helps keep the backend port aligned with the frontend config during local development.
+try {
+  const envPath = path.resolve(process.cwd(), '.env')
+  const envFile = fs.readFileSync(envPath, 'utf8')
+  const match = envFile.match(/^\s*PORT\s*=\s*(\d+)\s*$/m)
+  if (match && match[1]) {
+    process.env.PORT = match[1]
+  }
+} catch {
+  // ignore if .env is missing or unreadable
+}
 
 const requiredVars = ['MONGODB_URI', 'BASE_RPC_URL', 'ADMIN_WALLET_ADDRESS']
 

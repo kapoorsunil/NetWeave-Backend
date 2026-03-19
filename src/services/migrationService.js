@@ -112,13 +112,14 @@ export async function migrateDownlineLevelsToCurrentDepth() {
   }
 }
 
-export async function rebuildBinaryReferralTree() {
-  const users = await User.find({ isRegistered: true }).sort({ createdAt: 1, _id: 1 })
+async function computeBinaryReferralTreeRebuild() {
+  const users = await User.find({ isRegistered: true }).sort({ createdAt: 1, walletAddress: 1 })
 
   if (!users.length) {
     return {
       total: 0,
       modified: 0,
+      changes: [],
     }
   }
 
@@ -165,6 +166,46 @@ export async function rebuildBinaryReferralTree() {
     sponsor._migrationReferralCount += 1
   }
 
+  const changes = users
+    .map((user) => {
+      const rebuiltUser = userByWallet.get(normalizeWallet(user.walletAddress))
+
+      if (!rebuiltUser) {
+        return null
+      }
+
+      const current = {
+        treeParent: user.treeParent || null,
+        treeLeftChild: user.treeLeftChild || null,
+        treeRightChild: user.treeRightChild || null,
+        placementSide: user.placementSide || null,
+      }
+
+      const next = {
+        treeParent: rebuiltUser.treeParent,
+        treeLeftChild: rebuiltUser.treeLeftChild,
+        treeRightChild: rebuiltUser.treeRightChild,
+        placementSide: rebuiltUser.placementSide,
+      }
+
+      const hasChanged =
+        current.treeParent !== next.treeParent ||
+        current.treeLeftChild !== next.treeLeftChild ||
+        current.treeRightChild !== next.treeRightChild ||
+        current.placementSide !== next.placementSide
+
+      if (!hasChanged) {
+        return null
+      }
+
+      return {
+        walletAddress: user.walletAddress,
+        current,
+        next,
+      }
+    })
+    .filter(Boolean)
+
   const operations = Array.from(userByWallet.values()).map((user) => ({
     updateOne: {
       filter: { _id: user._id },
@@ -179,11 +220,28 @@ export async function rebuildBinaryReferralTree() {
     },
   }))
 
-  const result = await User.bulkWrite(operations)
-
   return {
     total: users.length,
+    modified: changes.length,
+    changes,
+    operations,
+  }
+}
+
+export async function rebuildBinaryReferralTree(options = {}) {
+  const { apply = true } = options
+  const rebuildPlan = await computeBinaryReferralTreeRebuild()
+
+  if (!apply || !rebuildPlan.operations?.length) {
+    return rebuildPlan
+  }
+
+  const result = await User.bulkWrite(rebuildPlan.operations)
+
+  return {
+    total: rebuildPlan.total,
     modified: result.modifiedCount,
+    changes: rebuildPlan.changes,
   }
 }
 

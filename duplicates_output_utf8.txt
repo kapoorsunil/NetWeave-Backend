@@ -1,0 +1,16 @@
+﻿
+--- STRUCTURAL DUPLICATE ANALYSIS (Multiple Parents) ---
+
+CHILD WALLET: test2 (0xf21c0f07bbb5a6c2be134fbc923d50b355c67608)
+  - Parent 1: Dummy 4-4 (0x0000000000000000000000000000000000000011)
+  - Parent 2: Dummy 4-5 (0x0000000000000000000000000000000000000012)
+---------------------------------------------------------
+CHILD WALLET: Not Found and Not in DB (0x4630301db9dbc026ca7db4ba3a552b5e62aefb25)
+  - Parent 1: Dummy 4-7 (0x0000000000000000000000000000000000000014)
+  - Parent 2: Dummy 4-7 (0x0000000000000000000000000000000000000014)
+  - Parent 3: Sunil Kapoor (0xC64A0728049738091Ab64352019F4FDD7286E5aD)
+---------------------------------------------------------
+CHILD WALLET: Himanshu shekhar (0x0dc312489559eb418c196de6e5868f9083c3fdff)
+  - Parent 1: Dummy 4-8 (0x0000000000000000000000000000000000000015)
+  - Parent 2: name (0xaC2Ac1c235c1dCaE982a646Bd9f4787A5Ae35e37)
+---------------------------------------------------------

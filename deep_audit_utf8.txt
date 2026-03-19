@@ -1,0 +1,17 @@
+﻿
+--- FINANCIAL AUDIT: 0x8479Ec17E4ee77b9d174348f665460859B8F4f14 ---
+
+USER PROFILE:
+  Name: Dummy 1-1
+  Referral Balance: $-18
+  Main Balance: $230.01
+  Is Registered: true
+  Registration Pay Done: true
+
+WITHDRAWAL REQUESTS (0):
+
+TOP-UP RECORDS (4):
+  - Amount: $0.01 | Status: undefined | Date: Thu Mar 12 2026 10:41:31 GMT+0530 (India Standard Time)
+  - Amount: $0.01 | Status: undefined | Date: Thu Mar 12 2026 11:59:16 GMT+0530 (India Standard Time)
+  - Amount: $0.01 | Status: undefined | Date: Thu Mar 12 2026 12:01:32 GMT+0530 (India Standard Time)
+  - Amount: $0.01 | Status: undefined | Date: Thu Mar 12 2026 20:08:03 GMT+0530 (India Standard Time)

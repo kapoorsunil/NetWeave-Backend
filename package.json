@@ -11,6 +11,8 @@
     "backfill:registration-rewards": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { migrateMissingRegistrationRewards } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await migrateMissingRegistrationRewards(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
     "migrate:downline-levels": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { migrateDownlineLevelsToCurrentDepth } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await migrateDownlineLevelsToCurrentDepth(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
     "migrate:binary-tree": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { rebuildBinaryReferralTree } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await rebuildBinaryReferralTree(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
+    "repair:binary-tree:preview": "node scripts/repair-binary-tree.js",
+    "repair:binary-tree:apply": "node scripts/repair-binary-tree.js --apply",
     "seed:dummy-tree-level4": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { seedAdminTreeToLevelFour } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await seedAdminTreeToLevelFour(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\""
   },
   "dependencies": {

@@ -1,0 +1,51 @@
+﻿
+--- PRE-EXECUTION BALANCE AUDIT ---
+
+User: Dummy 1-1 (0x8479Ec17E4ee77b9d174348f665460859B8F4f14)
+  - Current Balance: $-18.00
+  - Proposed Deduction: -$44.00
+  - Projected Balance: $-62.00 [!!! NEGATIVE !!!]
+User: undefined (0xB0fAD5d0140529C94D43FDA39e918A23B9E5F555)
+  - Current Balance: $42.50
+  - Proposed Deduction: -$7.50
+  - Projected Balance: $35.00 [OK]
+User: Dummy 2-2 (0x0000000000000000000000000000000000000003)
+  - Current Balance: $0.00
+  - Proposed Deduction: -$1.50
+  - Projected Balance: $-1.50 [!!! NEGATIVE !!!]
+User: Sunil Kapoor (0xC64A0728049738091Ab64352019F4FDD7286E5aD)
+  - Current Balance: $-1.00
+  - Proposed Deduction: -$1.00
+  - Projected Balance: $-2.00 [!!! NEGATIVE !!!]
+User: Dummy 2-1 (0x0000000000000000000000000000000000000002)
+  - Current Balance: $5.00
+  - Proposed Deduction: -$0.50
+  - Projected Balance: $4.50 [OK]
+User: Dummy 3-4 (0x0000000000000000000000000000000000000009)
+  - Current Balance: $0.50
+  - Proposed Deduction: -$0.50
+  - Projected Balance: $0.00 [OK]
+User: Dummy 4-7 (0x0000000000000000000000000000000000000014)
+  - Current Balance: $-0.25
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $-0.50 [!!! NEGATIVE !!!]
+User: Dummy 3-1 (0x0000000000000000000000000000000000000006)
+  - Current Balance: $2.25
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $2.00 [OK]
+User: Dummy 4-2 (0x000000000000000000000000000000000000000f)
+  - Current Balance: $0.50
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $0.25 [OK]
+User: Dummy 3-3 (0x0000000000000000000000000000000000000008)
+  - Current Balance: $-0.25
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $-0.50 [!!! NEGATIVE !!!]
+User: Dummy 4-6 (0x0000000000000000000000000000000000000013)
+  - Current Balance: $-0.25
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $-0.50 [!!! NEGATIVE !!!]
+User: Dummy 4-8 (0x0000000000000000000000000000000000000015)
+  - Current Balance: $0.25
+  - Proposed Deduction: -$0.25
+  - Projected Balance: $0.00 [OK]

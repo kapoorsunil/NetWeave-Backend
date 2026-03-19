@@ -1,0 +1,23 @@
+﻿
+--- RESTRUCTURING REQUIREMENT AUDIT ---
+
+Checking Orphan: 0x4630301db9dbc026ca7db4ba3a552b5e62aefb25
+  - Has Descendants: NO
+  - Sibling Shifting Needed: YES
+  - FINAL VERDICT: Restructuring REQUIRED.
+---------------------------------------------------------
+Checking Orphan: 0xc64a0728049738091aa64352019f4fcd7286e5ad
+  - Has Descendants: NO
+  - Sibling Shifting Needed: NO
+  - FINAL VERDICT: NO restructuring needed for this node. Just nullify.
+---------------------------------------------------------
+Checking Orphan: 0xf050afa9ca20d7ce9649eff23627a8c7ac293655
+  - Has Descendants: NO
+  - Sibling Shifting Needed: NO
+  - FINAL VERDICT: NO restructuring needed for this node. Just nullify.
+---------------------------------------------------------
+Checking Orphan: 0xbe91f8f51e617dc899288c1e595f86367896774a
+  - Has Descendants: NO
+  - Sibling Shifting Needed: YES
+  - FINAL VERDICT: Restructuring REQUIRED.
+---------------------------------------------------------

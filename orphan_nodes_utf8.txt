@@ -1,0 +1,17 @@
+﻿
+--- ORPHAN NODE ANALYSIS (Referenced as child, missing from DB primary record) ---
+
+[!] ORPHAN WALLET: 0xc64a0728049738091aa64352019f4fcd7286e5ad
+    - Linked as Right Child of: Dummy 4-2 (0x000000000000000000000000000000000000000f)
+---------------------------------------------------------
+[!] ORPHAN WALLET: 0xf050afa9ca20d7ce9649eff23627a8c7ac293655
+    - Linked as Right Child of: Dummy 4-6 (0x0000000000000000000000000000000000000013)
+---------------------------------------------------------
+[!] ORPHAN WALLET: 0x4630301db9dbc026ca7db4ba3a552b5e62aefb25
+    - Linked as Left Child of: Dummy 4-7 (0x0000000000000000000000000000000000000014)
+    - Linked as Right Child of: Dummy 4-7 (0x0000000000000000000000000000000000000014)
+    - Linked as Right Child of: Sunil Kapoor (0xC64A0728049738091Ab64352019F4FDD7286E5aD)
+---------------------------------------------------------
+[!] ORPHAN WALLET: 0xbe91f8f51e617dc899288c1e595f86367896774a
+    - Linked as Left Child of: Dummy 4-8 (0x0000000000000000000000000000000000000015)
+---------------------------------------------------------

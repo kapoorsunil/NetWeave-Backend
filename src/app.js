@@ -14,7 +14,14 @@ export const app = express()
 app.use(
   cors({
     origin(origin, callback) {
+      // Allow serverside tools (curl, Postman) and dev tooling to access API.
       if (!origin) {
+        return callback(null, true)
+      }
+
+      // In development, allow all origins to avoid CORS issues when running from
+      // multiple localhost ports.
+      if (process.env.NODE_ENV !== 'production') {
         return callback(null, true)
       }
 
