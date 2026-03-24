@@ -1,31 +1,33 @@
 {
-  "name": "netweave-backend",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "encrypt:private-key": "node scripts/encrypt-private-key.js",
-    "preview:registration-rewards": "node scripts/preview-registration-rewards.js",
-    "backfill:registration-rewards": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { migrateMissingRegistrationRewards } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await migrateMissingRegistrationRewards(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
-    "migrate:downline-levels": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { migrateDownlineLevelsToCurrentDepth } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await migrateDownlineLevelsToCurrentDepth(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
-    "migrate:binary-tree": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { rebuildBinaryReferralTree } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await rebuildBinaryReferralTree(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\"",
-    "repair:binary-tree:preview": "node scripts/repair-binary-tree.js",
-    "repair:binary-tree:apply": "node scripts/repair-binary-tree.js --apply",
-    "seed:dummy-tree-level4": "node -e \"import('./src/config/db.js').then(async ({ connectDatabase }) => { const { seedAdminTreeToLevelFour } = await import('./src/services/migrationService.js'); await connectDatabase(); const result = await seedAdminTreeToLevelFour(); console.log(result); process.exit(0); }).catch((error) => { console.error(error); process.exit(1); })\""
-  },
-  "dependencies": {
-    "@sendgrid/mail": "^8.1.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.9.5",
-    "morgan": "^1.10.0",
-    "viem": "^2.22.21"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
-  }
+    "name":  "netweave-backend",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "nodemon src/server.js",
+                    "start":  "node src/server.js",
+                    "encrypt:private-key":  "node scripts/encrypt-private-key.js",
+                    "preview:registration-rewards":  "node scripts/preview-registration-rewards.js",
+                    "backfill:registration-rewards":  "node -e \"import(\u0027./src/config/db.js\u0027).then(async ({ connectDatabase }) =\u003e { const { migrateMissingRegistrationRewards } = await import(\u0027./src/services/migrationService.js\u0027); await connectDatabase(); const result = await migrateMissingRegistrationRewards(); console.log(result); process.exit(0); }).catch((error) =\u003e { console.error(error); process.exit(1); })\"",
+                    "migrate:downline-levels":  "node -e \"import(\u0027./src/config/db.js\u0027).then(async ({ connectDatabase }) =\u003e { const { migrateDownlineLevelsToCurrentDepth } = await import(\u0027./src/services/migrationService.js\u0027); await connectDatabase(); const result = await migrateDownlineLevelsToCurrentDepth(); console.log(result); process.exit(0); }).catch((error) =\u003e { console.error(error); process.exit(1); })\"",
+                    "migrate:binary-tree":  "node -e \"import(\u0027./src/config/db.js\u0027).then(async ({ connectDatabase }) =\u003e { const { rebuildBinaryReferralTree } = await import(\u0027./src/services/migrationService.js\u0027); await connectDatabase(); const result = await rebuildBinaryReferralTree(); console.log(result); process.exit(0); }).catch((error) =\u003e { console.error(error); process.exit(1); })\"",
+                    "repair:binary-tree:preview":  "node scripts/repair-binary-tree.js",
+                    "repair:binary-tree:apply":  "node scripts/repair-binary-tree.js --apply",
+                    "seed:dummy-tree-level4":  "node -e \"import(\u0027./src/config/db.js\u0027).then(async ({ connectDatabase }) =\u003e { const { seedAdminTreeToLevelFour } = await import(\u0027./src/services/migrationService.js\u0027); await connectDatabase(); const result = await seedAdminTreeToLevelFour(); console.log(result); process.exit(0); }).catch((error) =\u003e { console.error(error); process.exit(1); })\"",
+                    "backfill:registration-rewards:v2:preview":  "node scripts/backfill-registration-rewards-v2.js",
+                    "backfill:registration-rewards:v2:apply":  "node scripts/backfill-registration-rewards-v2.js --apply"
+                },
+    "dependencies":  {
+                         "@sendgrid/mail":  "^8.1.3",
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.4.7",
+                         "express":  "^4.21.2",
+                         "jsonwebtoken":  "^9.0.2",
+                         "mongoose":  "^8.9.5",
+                         "morgan":  "^1.10.0",
+                         "viem":  "^2.22.21"
+                     },
+    "devDependencies":  {
+                            "nodemon":  "^3.1.9"
+                        }
 }

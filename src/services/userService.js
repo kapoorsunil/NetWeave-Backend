@@ -233,33 +233,35 @@ function isSeedOrSystemUser(user) {
 
 async function buildRegistrationRewardChain(user) {
   const directReferrer = user.referredBy || null
-  const placementPathFromDirect = []
+  const path = []
   const visited = new Set([normalizeWallet(user.walletAddress)])
   let currentParentWallet = user.treeParent
 
-  while (currentParentWallet) {
+  while (currentParentWallet && path.length < TEAM_LEVELS) {
     const normalizedParentWallet = normalizeWallet(currentParentWallet)
 
-    if (
-      normalizedParentWallet &&
-      normalizedParentWallet !== normalizeWallet(directReferrer) &&
-      !visited.has(normalizedParentWallet)
-    ) {
-      placementPathFromDirect.push(currentParentWallet)
-      visited.add(normalizedParentWallet)
-    }
-
-    const parentUser = await User.findOne({ walletAddress: currentParentWallet }).collation(walletCollation)
-    if (!parentUser || normalizeWallet(parentUser.walletAddress) === normalizeWallet(directReferrer)) {
+    if (!normalizedParentWallet || visited.has(normalizedParentWallet)) {
       break
     }
 
+    const parentUser = await User.findOne({ walletAddress: currentParentWallet }).collation(walletCollation)
+    if (!parentUser) {
+      break
+    }
+
+    path.push({
+      walletAddress: parentUser.walletAddress,
+      isDirect: normalizedParentWallet === normalizeWallet(directReferrer),
+      registrationPaymentDone: Boolean(parentUser.registrationPaymentDone),
+    })
+
+    visited.add(normalizedParentWallet)
     currentParentWallet = parentUser.treeParent || null
   }
 
   return {
     directReferrer,
-    levels: placementPathFromDirect.reverse().slice(0, TEAM_LEVELS),
+    path,
   }
 }
 
@@ -268,48 +270,18 @@ async function distributeRegistrationReferralRewards(user, registrationAmount) {
   const baseAmountUnits = toCurrencyUnits(registrationAmount)
   const appliedRewards = []
 
-  if (rewardChain.directReferrer) {
-    const directRewardUnits = Math.round((baseAmountUnits * 20) / 100)
-
-    if (directRewardUnits > 0) {
-      const directRewardAmount = fromCurrencyUnits(directRewardUnits)
-      const updatedDirectUser = await User.findOneAndUpdate(
-        { walletAddress: rewardChain.directReferrer.trim() },
-        {
-          $inc: {
-            referralBalance: directRewardAmount,
-          },
-        },
-        {
-          new: true,
-          collation: walletCollation,
-        },
-      ).collation(walletCollation)
-
-      if (!updatedDirectUser) {
-        throw new Error('Failed to distribute direct referral reward.')
-      }
-
-      appliedRewards.push({
-        walletAddress: updatedDirectUser.walletAddress,
-        level: 'direct',
-        amount: directRewardAmount,
-      })
-    }
-  }
-
-  for (const [index, walletAddress] of rewardChain.levels.entries()) {
-    const level = index + 1
-    const rewardPercent = getReferralRewardPercent(level)
+  for (const [index, node] of rewardChain.path.entries()) {
+    const levelPosition = index + 1
+    const rewardPercent = node.isDirect ? 20 : getReferralRewardPercent(levelPosition)
     const rewardUnits = Math.round((baseAmountUnits * rewardPercent) / 100)
 
-    if (rewardUnits <= 0) {
+    if (!node.registrationPaymentDone || rewardUnits <= 0) {
       continue
     }
 
     const creditedAmount = fromCurrencyUnits(rewardUnits)
     const updatedUser = await User.findOneAndUpdate(
-      { walletAddress: walletAddress?.trim() },
+      { walletAddress: node.walletAddress?.trim() },
       {
         $inc: {
           referralBalance: creditedAmount,
@@ -322,12 +294,12 @@ async function distributeRegistrationReferralRewards(user, registrationAmount) {
     ).collation(walletCollation)
 
     if (!updatedUser) {
-      throw new Error(`Failed to distribute referral reward for level ${level}.`)
+      throw new Error(`Failed to distribute referral reward for ${node.isDirect ? "direct" : `level ${levelPosition}`}.`)
     }
 
     appliedRewards.push({
       walletAddress: updatedUser.walletAddress,
-      level,
+      level: node.isDirect ? "direct" : levelPosition,
       amount: creditedAmount,
     })
   }

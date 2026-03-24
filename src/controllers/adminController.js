@@ -1,4 +1,4 @@
-import { authenticateAdmin, getAdminUserOverview, topUpUserFromAdmin } from '../services/adminService.js'
+import { authenticateAdmin, getAdminDashboardSummary, getAdminUserOverview, topUpUserFromAdmin } from '../services/adminService.js'
 
 export async function adminLogin(req, res, next) {
   try {
@@ -13,6 +13,7 @@ export async function adminLogin(req, res, next) {
     }
 
     const { token, admin } = await authenticateAdmin(email, password)
+    const dashboardSummary = await getAdminDashboardSummary()
 
     res.json({
       success: true,
@@ -21,6 +22,7 @@ export async function adminLogin(req, res, next) {
         admin: {
           email: admin.email,
           balance: admin.balance ?? 0,
+          dashboardSummary,
         },
       },
     })
@@ -29,14 +31,21 @@ export async function adminLogin(req, res, next) {
   }
 }
 
-export async function adminMe(req, res) {
-  res.json({
-    success: true,
-    data: {
-      email: req.admin.email,
-      balance: req.admin.balance ?? 0,
-    },
-  })
+export async function adminMe(req, res, next) {
+  try {
+    const dashboardSummary = await getAdminDashboardSummary()
+
+    res.json({
+      success: true,
+      data: {
+        email: req.admin.email,
+        balance: req.admin.balance ?? 0,
+        dashboardSummary,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
 }
 
 export async function searchUserForAdmin(req, res, next) {
@@ -74,3 +83,4 @@ export async function adminTopUpUser(req, res, next) {
     next(error)
   }
 }
+

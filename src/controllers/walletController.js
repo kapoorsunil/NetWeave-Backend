@@ -1,11 +1,8 @@
 import { env } from '../config/env.js'
 import { User } from '../models/User.js'
-import { UserOtp } from '../models/UserOtp.js'
 import { WithdrawRequest } from '../models/WithdrawRequest.js'
-import { generateOtpCode, hashOtpCode, verifyOtpCode } from '../utils/authCrypto.js'
 import { TopUpRecord } from '../models/TopUpRecord.js'
 import { computeWithdrawalSplit, normalizeCryptoTopUp, payoutReferralWithdrawal, prefundUserGas } from '../services/paymentService.js'
-import { sendOtpEmail } from '../services/mailService.js'
 import {
   consumeRegistrationBalance,
   creditUserMainBalanceWithOptions,
@@ -18,9 +15,6 @@ function normalizeWallet(value) {
   return value?.toLowerCase().trim()
 }
 
-function createOtpExpiryDate() {
-  return new Date(Date.now() + 10 * 60 * 1000)
-}
 
 const activeWithdrawProcessors = new Set()
 
@@ -212,111 +206,10 @@ export async function completeRegistrationPayment(req, res, next) {
   }
 }
 
-export async function sendWithdrawOtp(req, res, next) {
-  try {
-    const walletAddress = req.body.walletAddress?.trim()
-
-    if (!walletAddress) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress is required.',
-      })
-    }
-
-    const user = await requireExistingUser(walletAddress)
-
-    if (!user.email) {
-      return res.status(400).json({
-        success: false,
-        message: 'User does not have a registered email for withdrawal OTP.',
-      })
-    }
-
-    const otpCode = generateOtpCode()
-
-    await UserOtp.deleteMany({
-      walletAddress,
-      purpose: 'withdraw',
-      consumedAt: null,
-    })
-
-    await UserOtp.create({
-      walletAddress,
-      email: user.email,
-      purpose: 'withdraw',
-      codeHash: hashOtpCode(otpCode),
-      expiresAt: createOtpExpiryDate(),
-    })
-
-    await sendOtpEmail({
-      to: user.email,
-      purpose: 'withdraw',
-      otpCode,
-    })
-
-    res.json({
-      success: true,
-      data: {
-        walletAddress,
-        email: user.email,
-      },
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function verifyWithdrawOtp(req, res, next) {
-  try {
-    const walletAddress = req.body.walletAddress?.trim()
-    const otp = req.body.otp?.trim()
-
-    if (!walletAddress || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress and otp are required.',
-      })
-    }
-
-    const otpEntry = await UserOtp.findOne({
-      walletAddress,
-      purpose: 'withdraw',
-      consumedAt: null,
-    }).sort({ createdAt: -1 })
-
-    if (!otpEntry || otpEntry.expiresAt < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Withdraw OTP expired or not found.',
-      })
-    }
-
-    if (!verifyOtpCode(otp, otpEntry.codeHash)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP.',
-      })
-    }
-
-    otpEntry.verifiedAt = new Date()
-    await otpEntry.save()
-
-    res.json({
-      success: true,
-      data: {
-        verificationToken: String(otpEntry._id),
-      },
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
 export async function requestWithdraw(req, res, next) {
   try {
     const walletAddress = req.body.walletAddress?.trim()
     const amount = Number(req.body.amount)
-    const verificationToken = req.body.verificationToken?.trim() || ''
 
     if (!walletAddress || !Number.isFinite(amount)) {
       return res.status(400).json({
@@ -347,26 +240,6 @@ export async function requestWithdraw(req, res, next) {
         message: 'A valid wallet address is required.',
       })
     }
-
-    if (verificationToken) {
-      const otpEntry = await UserOtp.findOne({
-        _id: verificationToken,
-        walletAddress,
-        purpose: 'withdraw',
-        consumedAt: null,
-      })
-
-      if (!otpEntry || !otpEntry.verifiedAt) {
-        return res.status(400).json({
-          success: false,
-          message: 'Withdraw OTP verification is required.',
-        })
-      }
-
-      otpEntry.consumedAt = new Date()
-      await otpEntry.save()
-    }
-
     const roundedAmount = Number(amount.toFixed(2))
     const split = computeWithdrawalSplit(roundedAmount)
 
@@ -399,8 +272,7 @@ export async function requestWithdraw(req, res, next) {
       userAmount: split.userAmount,
       feeAmount: split.feeAmount,
       platformFeeAmount: split.platformFeeAmount,
-      status: 'pending',
-      otpVerified: Boolean(verificationToken),
+      status: 'pending',      otpVerified: false,
     })
 
     void processWithdrawRequestById(withdrawRequest._id)
@@ -417,3 +289,4 @@ export async function requestWithdraw(req, res, next) {
     next(error)
   }
 }
+

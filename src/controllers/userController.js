@@ -1,8 +1,6 @@
 import { env } from '../config/env.js'
 import { User } from '../models/User.js'
-import { UserOtp } from '../models/UserOtp.js'
-import { generateOtpCode, hashOtpCode, verifyOtpCode, encodeOtpPayload, decodeOtpPayload, hashPassword, verifyPassword } from '../utils/authCrypto.js'
-import { sendOtpEmail } from '../services/mailService.js'
+import { hashPassword, verifyPassword } from '../utils/authCrypto.js'
 import {
   buildBinaryTreeResponse,
   ensureAdminUser,
@@ -16,9 +14,6 @@ function normalizeWallet(value) {
   return value?.toLowerCase().trim()
 }
 
-function createOtpExpiryDate() {
-  return new Date(Date.now() + 10 * 60 * 1000)
-}
 
 function isValidSignupEmail(value) {
   const normalizedEmail = value?.trim().toLowerCase()
@@ -148,135 +143,6 @@ export async function checkEmailAvailability(req, res, next) {
   }
 }
 
-export async function requestSignupOtp(req, res, next) {
-  try {
-    await ensureAdminUser()
-
-    const walletAddress = req.body.walletAddress?.trim()
-    const smartWalletAddress = req.body.smartWalletAddress?.trim()
-    const referralAddress = req.body.referralAddress?.trim()
-    const name = req.body.name?.trim()
-    const username = req.body.username?.trim()
-    const email = req.body.email?.trim()
-    const country = req.body.country?.trim()
-    const password = typeof req.body.password === 'string' ? req.body.password.trim() : ''
-
-    if (!walletAddress) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress is required.',
-      })
-    }
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'email is required.',
-      })
-    }
-
-    if (!isValidSignupEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Enter a valid email address.',
-      })
-    }
-
-    const existingEmail = await User.findOne({
-      email: email.toLowerCase(),
-      walletAddress: { $ne: walletAddress },
-    })
-
-    if (existingEmail) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is already taken.',
-      })
-    }
-
-    if (username) {
-      const existingUsername = await User.findOne({
-        username: username.toLowerCase(),
-        walletAddress: { $ne: walletAddress },
-      })
-
-      if (existingUsername) {
-        return res.status(400).json({
-          success: false,
-          message: 'Username is already taken.',
-        })
-      }
-    }
-
-    if (password && password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters.',
-      })
-    }
-
-    if (normalizeWallet(walletAddress) !== normalizeWallet(env.adminWalletAddress)) {
-      if (!referralAddress || normalizeWallet(walletAddress) === normalizeWallet(referralAddress)) {
-        return res.status(400).json({
-          success: false,
-          message: 'A valid referral address is required for registration.',
-        })
-      }
-    }
-
-    const otpCode = generateOtpCode()
-    const passwordHash = password ? hashPassword(password) : undefined
-
-    await UserOtp.deleteMany({
-      walletAddress,
-      purpose: 'signup',
-      consumedAt: null,
-    })
-
-    await UserOtp.create({
-      walletAddress,
-      email,
-      purpose: 'signup',
-      codeHash: hashOtpCode(otpCode),
-      payload: encodeOtpPayload({
-        walletAddress,
-        smartWalletAddress,
-        referralAddress: referralAddress || env.adminWalletAddress,
-        name,
-        username,
-        email,
-        country,
-        passwordHash,
-      }),
-      expiresAt: createOtpExpiryDate(),
-    })
-
-    try {
-      await sendOtpEmail({
-        to: email,
-        purpose: 'signup',
-        otpCode,
-      })
-    } catch (error) {
-      const message = error?.message || 'Unable to send OTP email.'
-      return res.status(400).json({
-        success: false,
-        message,
-      })
-    }
-
-    res.json({
-      success: true,
-      data: {
-        walletAddress,
-        email,
-      },
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
 export async function directSignup(req, res, next) {
   try {
     await ensureAdminUser()
@@ -288,6 +154,7 @@ export async function directSignup(req, res, next) {
     const username = req.body.username?.trim()
     const email = req.body.email?.trim()
     const country = req.body.country?.trim()
+    const password = typeof req.body.password === 'string' ? req.body.password.trim() : ''
 
     if (!walletAddress) {
       return res.status(400).json({
@@ -327,103 +194,9 @@ export async function directSignup(req, res, next) {
       username,
       email,
       country,
-      passwordHash: undefined,
+      passwordHash: password ? hashPassword(password) : undefined,
       txHash: null,
     })
-
-    res.status(201).json({
-      success: true,
-      data: {
-        walletAddress: user.walletAddress,
-        smartWalletAddress: user.smartWalletAddress || null,
-        isRegistered: user.isRegistered,
-        registrationPaymentDone: user.registrationPaymentDone ?? false,
-        name: user.name || '',
-        username: user.username || '',
-        email: user.email || '',
-        country: user.country || '',
-        mainBalance: user.mainBalance ?? 0,
-        referralBalance: user.referralBalance ?? 0,
-        referredBy: user.referredBy,
-      },
-    })
-  } catch (error) {
-    next(error)
-  }
-}
-
-export async function verifySignupOtp(req, res, next) {
-  try {
-    await ensureAdminUser()
-
-    const walletAddress = req.body.walletAddress?.trim()
-    const email = req.body.email?.trim().toLowerCase()
-    const otp = req.body.otp?.trim()
-    const shouldCreateUser = Boolean(req.body.createUser)
-
-    if (!walletAddress || !email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress, email and otp are required.',
-      })
-    }
-
-    const otpEntry = await UserOtp.findOne({
-      walletAddress,
-      email,
-      purpose: 'signup',
-      consumedAt: null,
-    }).sort({ createdAt: -1 })
-
-    if (!otpEntry || otpEntry.expiresAt < new Date()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Signup OTP expired or not found.',
-      })
-    }
-
-    if (!verifyOtpCode(otp, otpEntry.codeHash)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP.',
-      })
-    }
-
-    otpEntry.verifiedAt = new Date()
-
-    if (!shouldCreateUser) {
-      await otpEntry.save()
-      return res.json({
-        success: true,
-        data: {
-          verified: true,
-        },
-      })
-    }
-
-    const payload = decodeOtpPayload(otpEntry.payload)
-
-    const name = req.body.name?.trim() || payload.name
-    const username = req.body.username?.trim() || payload.username
-    const emailInput = req.body.email?.trim().toLowerCase() || payload.email
-    const country = req.body.country?.trim() || payload.country
-    const password = req.body.password?.trim()
-    const passwordHash = password ? hashPassword(password) : payload.passwordHash
-
-    const user = await registerUserWithReferral({
-      walletAddress: payload.walletAddress,
-      smartWalletAddress: payload.smartWalletAddress,
-      referralAddress: payload.referralAddress,
-      name,
-      username,
-      email: emailInput,
-      country,
-      passwordHash,
-      txHash: null,
-    })
-
-    otpEntry.consumedAt = new Date()
-    await otpEntry.save()
 
     res.status(201).json({
       success: true,
@@ -561,3 +334,5 @@ export async function getTeam(req, res, next) {
     next(error)
   }
 }
+
+

@@ -141,3 +141,48 @@ export async function topUpUserFromAdmin(admin, walletAddress, amount) {
     throw error
   }
 }
+
+export async function getAdminDashboardSummary() {
+  const [summary] = await User.aggregate([
+    {
+      $match: {
+        isRegistered: true,
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalMainBalance: {
+          $sum: {
+            $ifNull: ['$mainBalance', 0],
+          },
+        },
+        totalReferralBalance: {
+          $sum: {
+            $ifNull: ['$referralBalance', 0],
+          },
+        },
+        totalRegistrations: { $sum: 1 },
+        paidRegistrations: {
+          $sum: {
+            $cond: [{ $eq: ['$registrationPaymentDone', true] }, 1, 0],
+          },
+        },
+        unpaidRegistrations: {
+          $sum: {
+            $cond: [{ $eq: ['$registrationPaymentDone', false] }, 1, 0],
+          },
+        },
+      },
+    },
+  ])
+
+  return {
+    totalMainBalance: summary?.totalMainBalance ?? 0,
+    totalReferralBalance: summary?.totalReferralBalance ?? 0,
+    totalRegistrations: summary?.totalRegistrations ?? 0,
+    paidRegistrations: summary?.paidRegistrations ?? 0,
+    unpaidRegistrations: summary?.unpaidRegistrations ?? 0,
+  }
+}
+

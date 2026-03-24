@@ -1,5 +1,6 @@
 import { createEmptyDownlineLevels, TEAM_LEVELS } from '../constants/team.js'
 import { env } from '../config/env.js'
+import { WithdrawRequest } from '../models/WithdrawRequest.js'
 import { User } from '../models/User.js'
 import { backfillMissingRegistrationRewards } from './userService.js'
 
@@ -417,4 +418,234 @@ export async function seedAdminTreeToLevelFour() {
 
 export async function migrateMissingRegistrationRewards() {
   return backfillMissingRegistrationRewards()
+}
+
+function toCurrencyUnits(value) {
+  return Math.round(Number(value || 0) * 100)
+}
+
+function fromCurrencyUnits(value) {
+  return Number((Number(value || 0) / 100).toFixed(2))
+}
+
+function getReferralRewardPercent(level) {
+  if (level === 1) {
+    return 3
+  }
+
+  if (level === 2) {
+    return 2
+  }
+
+  if (level === 3) {
+    return 1
+  }
+
+  if (level >= 4 && level <= 10) {
+    return 0.5
+  }
+
+  if (level >= 11 && level <= 20) {
+    return 0.2
+  }
+
+  return 0
+}
+
+function shouldSkipRewardSource(user) {
+  const username = user?.username?.toLowerCase() || ''
+  const email = user?.email?.toLowerCase() || ''
+  const country = user?.country?.toLowerCase() || ''
+
+  return user?.isAdmin || username.startsWith('dummy') || email.endsWith('@netweave.local') || country === 'dummy'
+}
+
+async function buildRewardPathForUser(user) {
+  const path = []
+  const directWallet = normalizeWallet(user.referredBy)
+  let currentWallet = user.treeParent
+  const visited = new Set([normalizeWallet(user.walletAddress)])
+
+  while (currentWallet && path.length < TEAM_LEVELS) {
+    const normalizedCurrentWallet = normalizeWallet(currentWallet)
+    if (!normalizedCurrentWallet || visited.has(normalizedCurrentWallet)) {
+      break
+    }
+
+    const currentUser = await User.findOne({ walletAddress: currentWallet }).collation({ locale: 'en', strength: 2 })
+    if (!currentUser) {
+      break
+    }
+
+    path.push({
+      walletAddress: currentUser.walletAddress,
+      username: currentUser.username || '',
+      registrationPaymentDone: Boolean(currentUser.registrationPaymentDone),
+      isDirect: normalizeWallet(currentUser.walletAddress) === directWallet,
+    })
+
+    visited.add(normalizedCurrentWallet)
+    currentWallet = currentUser.treeParent || null
+  }
+
+  return path
+}
+
+async function computeReferralBalanceRebuild() {
+  const registrationAmountUnits = toCurrencyUnits(Number(env.registrationAmount))
+  const paidUsers = await User.find({
+    isRegistered: true,
+    registrationPaymentDone: true,
+  })
+    .select('walletAddress username email country isAdmin referredBy treeParent registrationPaymentDone')
+    .sort({ createdAt: 1, walletAddress: 1 })
+    .collation({ locale: 'en', strength: 2 })
+
+  const rewardUnitsByWallet = new Map()
+  const rewardBreakdown = new Map()
+
+  for (const user of paidUsers) {
+    if (shouldSkipRewardSource(user)) {
+      continue
+    }
+
+    const rewardPath = await buildRewardPathForUser(user)
+
+    rewardPath.forEach((node, index) => {
+      const levelPosition = index + 1
+      const rewardPercent = node.isDirect ? 20 : getReferralRewardPercent(levelPosition)
+      const rewardUnits = Math.round((registrationAmountUnits * rewardPercent) / 100)
+
+      if (!node.registrationPaymentDone || rewardUnits <= 0) {
+        return
+      }
+
+      const normalizedRecipient = normalizeWallet(node.walletAddress)
+      rewardUnitsByWallet.set(normalizedRecipient, (rewardUnitsByWallet.get(normalizedRecipient) || 0) + rewardUnits)
+
+      const existingBreakdown = rewardBreakdown.get(normalizedRecipient) || []
+      existingBreakdown.push({
+        sourceWalletAddress: user.walletAddress,
+        sourceUsername: user.username || '',
+        rewardType: node.isDirect ? 'direct' : `L${levelPosition}`,
+        rewardPercent,
+        amount: fromCurrencyUnits(rewardUnits),
+      })
+      rewardBreakdown.set(normalizedRecipient, existingBreakdown)
+    })
+  }
+
+  const withdraws = await WithdrawRequest.find({}).select('walletAddress amount status')
+  const withdrawUnitsByWallet = new Map()
+
+  for (const withdraw of withdraws) {
+    const normalizedWallet = normalizeWallet(withdraw.walletAddress)
+    withdrawUnitsByWallet.set(
+      normalizedWallet,
+      (withdrawUnitsByWallet.get(normalizedWallet) || 0) + toCurrencyUnits(withdraw.amount),
+    )
+  }
+
+  const allUsers = await User.find({ isRegistered: true })
+    .select('walletAddress username referralBalance')
+    .collation({ locale: 'en', strength: 2 })
+
+  const entries = allUsers.map((user) => {
+    const normalizedWallet = normalizeWallet(user.walletAddress)
+    const earnedUnits = rewardUnitsByWallet.get(normalizedWallet) || 0
+    const withdrawnUnits = withdrawUnitsByWallet.get(normalizedWallet) || 0
+    const correctedUnits = Math.max(earnedUnits - withdrawnUnits, 0)
+    const deficitUnits = Math.max(withdrawnUnits - earnedUnits, 0)
+    const currentUnits = toCurrencyUnits(user.referralBalance)
+
+    return {
+      walletAddress: user.walletAddress,
+      username: user.username || '',
+      currentReferralBalance: fromCurrencyUnits(currentUnits),
+      correctedReferralBalance: fromCurrencyUnits(correctedUnits),
+      totalEarnedRewards: fromCurrencyUnits(earnedUnits),
+      totalWithdrawn: fromCurrencyUnits(withdrawnUnits),
+      deficit: fromCurrencyUnits(deficitUnits),
+      delta: fromCurrencyUnits(correctedUnits - currentUnits),
+      breakdown: rewardBreakdown.get(normalizedWallet) || [],
+    }
+  })
+
+  const changedEntries = entries.filter((entry) => entry.currentReferralBalance !== entry.correctedReferralBalance)
+
+  const totals = entries.reduce(
+    (accumulator, entry) => {
+      accumulator.currentReferralBalance += entry.currentReferralBalance
+      accumulator.correctedReferralBalance += entry.correctedReferralBalance
+      accumulator.totalEarnedRewards += entry.totalEarnedRewards
+      accumulator.totalWithdrawn += entry.totalWithdrawn
+      accumulator.totalDeficit += entry.deficit
+      return accumulator
+    },
+    {
+      currentReferralBalance: 0,
+      correctedReferralBalance: 0,
+      totalEarnedRewards: 0,
+      totalWithdrawn: 0,
+      totalDeficit: 0,
+    },
+  )
+
+  return {
+    entries,
+    changedEntries,
+    totals: {
+      currentReferralBalance: Number(totals.currentReferralBalance.toFixed(2)),
+      correctedReferralBalance: Number(totals.correctedReferralBalance.toFixed(2)),
+      totalEarnedRewards: Number(totals.totalEarnedRewards.toFixed(2)),
+      totalWithdrawn: Number(totals.totalWithdrawn.toFixed(2)),
+      totalDeficit: Number(totals.totalDeficit.toFixed(2)),
+    },
+  }
+}
+
+export async function rebuildReferralBalancesFromRegistrations(options = {}) {
+  const { apply = false } = options
+  const rebuild = await computeReferralBalanceRebuild()
+
+  if (!apply) {
+    return {
+      apply: false,
+      totalUsers: rebuild.entries.length,
+      changedUsers: rebuild.changedEntries.length,
+      totals: rebuild.totals,
+      preview: rebuild.changedEntries.slice(0, 50),
+    }
+  }
+
+  if (!rebuild.entries.length) {
+    return {
+      apply: true,
+      totalUsers: 0,
+      changedUsers: 0,
+      totals: rebuild.totals,
+    }
+  }
+
+  const operations = rebuild.entries.map((entry) => ({
+    updateOne: {
+      filter: { walletAddress: entry.walletAddress },
+      update: {
+        $set: {
+          referralBalance: entry.correctedReferralBalance,
+        },
+      },
+    },
+  }))
+
+  const result = await User.bulkWrite(operations)
+
+  return {
+    apply: true,
+    totalUsers: rebuild.entries.length,
+    changedUsers: rebuild.changedEntries.length,
+    modifiedUsers: result.modifiedCount,
+    totals: rebuild.totals,
+    preview: rebuild.changedEntries.slice(0, 50),
+  }
 }
