@@ -73,6 +73,23 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 60,
     },
+    phoneCountryCode: {
+      type: String,
+      default: undefined,
+      trim: true,
+      maxlength: 10,
+    },
+    phoneNumber: {
+      type: String,
+      default: undefined,
+      trim: true,
+      maxlength: 25,
+    },
+    accountType: {
+      type: String,
+      enum: ['legacy_wallet', 'phone_signup'],
+      default: 'legacy_wallet',
+    },
     passwordHash: {
       type: String,
       default: undefined,
@@ -83,6 +100,16 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
     referralBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    claimedBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    claimReferralBalance: {
       type: Number,
       default: 0,
       min: 0,
@@ -172,6 +199,17 @@ userSchema.index(
     unique: true,
     partialFilterExpression: {
       email: { $exists: true, $type: 'string' },
+    },
+  },
+)
+
+userSchema.index(
+  { phoneCountryCode: 1, phoneNumber: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      phoneCountryCode: { $exists: true, $type: 'string' },
+      phoneNumber: { $exists: true, $type: 'string' },
     },
   },
 )

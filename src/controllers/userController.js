@@ -5,6 +5,7 @@ import {
   buildBinaryTreeResponse,
   ensureAdminUser,
   findRegisteredUser,
+  generateUniqueInternalWalletAddress,
   getLatestWithdrawRequest,
   getUserByWallet,
   registerUserWithReferral,
@@ -14,6 +15,13 @@ function normalizeWallet(value) {
   return value?.toLowerCase().trim()
 }
 
+function isValidWalletAddress(value) {
+  return /^0x[a-fA-F0-9]{40}$/.test(value?.trim() || '')
+}
+
+function normalizeLoginIdentifier(value) {
+  return value?.trim() || ''
+}
 
 function isValidSignupEmail(value) {
   const normalizedEmail = value?.trim().toLowerCase()
@@ -31,10 +39,7 @@ export async function getStatus(req, res, next) {
 
     const walletAddress = req.query.wallet?.trim()
     const referralAddress = req.query.referral?.trim()
-
-    const referralUser = referralAddress
-      ? await findRegisteredUser(referralAddress)
-      : null
+    const referralUser = referralAddress ? await findRegisteredUser(referralAddress) : null
 
     if (!walletAddress) {
       return res.json({
@@ -48,10 +53,16 @@ export async function getStatus(req, res, next) {
           username: '',
           email: '',
           country: '',
+          phoneCountryCode: '',
+          phoneNumber: '',
+          accountType: '',
           mainBalance: 0,
           referralBalance: 0,
+          claimedBalance: 0,
+          claimReferralBalance: 0,
           hasPassword: false,
           latestWithdrawStatus: null,
+          canRegister: Boolean(referralUser),
           referral: {
             walletAddress: referralAddress || null,
             isValid: Boolean(referralUser),
@@ -74,13 +85,16 @@ export async function getStatus(req, res, next) {
         username: user?.username || '',
         email: user?.email || '',
         country: user?.country || '',
+        phoneCountryCode: user?.phoneCountryCode || '',
+        phoneNumber: user?.phoneNumber || '',
+        accountType: user?.accountType || 'legacy_wallet',
         mainBalance: user?.mainBalance ?? 0,
         referralBalance: user?.referralBalance ?? 0,
+        claimedBalance: user?.claimedBalance ?? 0,
+        claimReferralBalance: user?.claimReferralBalance ?? 0,
         hasPassword: Boolean(user?.passwordHash),
         latestWithdrawStatus: latestWithdraw?.status || null,
-        canRegister:
-          normalizeWallet(walletAddress) === normalizeWallet(env.adminWalletAddress) ||
-          (Boolean(referralUser) && normalizeWallet(walletAddress) !== normalizeWallet(referralAddress) && !user?.isRegistered),
+        canRegister: Boolean(referralUser) && !user?.isRegistered,
         referredBy: user?.referredBy || null,
         referralLink: `${env.frontendUrl}/?referral=${user?.walletAddress || walletAddress}`,
         referral: {
@@ -99,21 +113,11 @@ export async function checkUsernameAvailability(req, res, next) {
     const username = req.query.username?.trim()
 
     if (!username) {
-      return res.status(400).json({
-        success: false,
-        message: 'username is required.',
-      })
+      return res.status(400).json({ success: false, message: 'username is required.' })
     }
 
-    const normalizedUsername = username.toLowerCase()
-    const exists = await User.exists({ username: normalizedUsername })
-
-    res.json({
-      success: true,
-      data: {
-        available: !Boolean(exists),
-      },
-    })
+    const exists = await User.exists({ username: username.toLowerCase() })
+    res.json({ success: true, data: { available: !Boolean(exists) } })
   } catch (error) {
     next(error)
   }
@@ -124,20 +128,11 @@ export async function checkEmailAvailability(req, res, next) {
     const email = req.query.email?.trim().toLowerCase()
 
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'email is required.',
-      })
+      return res.status(400).json({ success: false, message: 'email is required.' })
     }
 
     const exists = await User.exists({ email })
-
-    res.json({
-      success: true,
-      data: {
-        available: !Boolean(exists),
-      },
-    })
+    res.json({ success: true, data: { available: !Boolean(exists) } })
   } catch (error) {
     next(error)
   }
@@ -147,44 +142,48 @@ export async function directSignup(req, res, next) {
   try {
     await ensureAdminUser()
 
-    const walletAddress = req.body.walletAddress?.trim()
     const smartWalletAddress = req.body.smartWalletAddress?.trim()
+    const requestedWalletAddress = req.body.walletAddress?.trim()
     const referralAddress = req.body.referralAddress?.trim()
     const name = req.body.name?.trim()
     const username = req.body.username?.trim()
     const email = req.body.email?.trim()
+    const confirmEmail = req.body.confirmEmail?.trim()
     const country = req.body.country?.trim()
+    const phoneCountryCode = req.body.phoneCountryCode?.trim()
+    const phoneNumber = req.body.phoneNumber?.trim()
     const password = typeof req.body.password === 'string' ? req.body.password.trim() : ''
 
-    if (!walletAddress) {
+    if (!name || !username || !email || !confirmEmail || !country || !phoneCountryCode || !phoneNumber || !password) {
       return res.status(400).json({
         success: false,
-        message: 'walletAddress is required.',
+        message: 'name, username, email, confirmEmail, country, phoneCountryCode, phoneNumber and password are required.',
       })
     }
 
-    if (!name || !username || !email || !country) {
-      return res.status(400).json({
-        success: false,
-        message: 'name, username, email and country are required.',
-      })
+    if (!isValidSignupEmail(email) || !isValidSignupEmail(confirmEmail)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid email address.' })
     }
 
-    if (!isValidSignupEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Enter a valid email address.',
-      })
+    if (email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
+      return res.status(400).json({ success: false, message: 'Email and confirm email must match.' })
     }
 
-    if (normalizeWallet(walletAddress) !== normalizeWallet(env.adminWalletAddress)) {
-      if (!referralAddress || normalizeWallet(walletAddress) === normalizeWallet(referralAddress)) {
-        return res.status(400).json({
-          success: false,
-          message: 'A valid referral address is required for registration.',
-        })
-      }
+    if (!/^\+[0-9]{1,4}$/.test(phoneCountryCode) || !/^[0-9]{6,15}$/.test(phoneNumber)) {
+      return res.status(400).json({ success: false, message: 'Enter a valid phone number with country code.' })
     }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
+    }
+
+    if (!referralAddress) {
+      return res.status(400).json({ success: false, message: 'A valid referral address is required for registration.' })
+    }
+
+    const walletAddress = isValidWalletAddress(requestedWalletAddress)
+      ? requestedWalletAddress
+      : await generateUniqueInternalWalletAddress()
 
     const user = await registerUserWithReferral({
       walletAddress,
@@ -194,7 +193,10 @@ export async function directSignup(req, res, next) {
       username,
       email,
       country,
-      passwordHash: password ? hashPassword(password) : undefined,
+      phoneCountryCode,
+      phoneNumber,
+      accountType: isValidWalletAddress(requestedWalletAddress) ? 'legacy_wallet' : 'phone_signup',
+      passwordHash: hashPassword(password),
       txHash: null,
     })
 
@@ -209,8 +211,13 @@ export async function directSignup(req, res, next) {
         username: user.username || '',
         email: user.email || '',
         country: user.country || '',
+        phoneCountryCode: user.phoneCountryCode || '',
+        phoneNumber: user.phoneNumber || '',
+        accountType: user.accountType || 'phone_signup',
         mainBalance: user.mainBalance ?? 0,
         referralBalance: user.referralBalance ?? 0,
+        claimedBalance: user.claimedBalance ?? 0,
+        claimReferralBalance: user.claimReferralBalance ?? 0,
         referredBy: user.referredBy,
       },
     })
@@ -221,29 +228,23 @@ export async function directSignup(req, res, next) {
 
 export async function loginWithWalletPassword(req, res, next) {
   try {
-    const walletAddress = req.body.walletAddress?.trim()
+    const identifier = normalizeLoginIdentifier(req.body.identifier ?? req.body.walletAddress)
     const password = req.body.password?.trim()
 
-    if (!walletAddress || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress and password are required.',
-      })
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, message: 'identifier and password are required.' })
     }
 
-    const user = await findRegisteredUser(walletAddress)
+    const user = isValidWalletAddress(identifier)
+      ? await findRegisteredUser(identifier)
+      : await User.findOne({ email: identifier.toLowerCase(), isRegistered: true })
+
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'This wallet is not registered yet. Complete sign up first.',
-      })
+      return res.status(404).json({ success: false, message: 'This account is not registered yet. Complete sign up first.' })
     }
 
     if (!user.passwordHash || !verifyPassword(password, user.passwordHash)) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid wallet password.',
-      })
+      return res.status(401).json({ success: false, message: 'Invalid email or wallet password.' })
     }
 
     res.json({
@@ -264,44 +265,26 @@ export async function setWalletPassword(req, res, next) {
     const password = req.body.password?.trim()
 
     if (!walletAddress || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'walletAddress and password are required.',
-      })
+      return res.status(400).json({ success: false, message: 'walletAddress and password are required.' })
     }
 
     if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters.',
-      })
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' })
     }
 
     const user = await findRegisteredUser(walletAddress)
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'This wallet is not registered yet. Complete sign up first.',
-      })
+      return res.status(404).json({ success: false, message: 'This wallet is not registered yet. Complete sign up first.' })
     }
 
     if (user.passwordHash) {
-      return res.status(409).json({
-        success: false,
-        message: 'Password is already set for this wallet.',
-      })
+      return res.status(409).json({ success: false, message: 'Password is already set for this wallet.' })
     }
 
     user.passwordHash = hashPassword(password)
     await user.save()
 
-    res.json({
-      success: true,
-      data: {
-        walletAddress: user.walletAddress,
-        hasPassword: true,
-      },
-    })
+    res.json({ success: true, data: { walletAddress: user.walletAddress, hasPassword: true } })
   } catch (error) {
     next(error)
   }
@@ -312,27 +295,16 @@ export async function getTeam(req, res, next) {
     const walletAddress = req.query.wallet?.trim()
 
     if (!walletAddress) {
-      return res.status(400).json({
-        success: false,
-        message: 'wallet query parameter is required.',
-      })
+      return res.status(400).json({ success: false, message: 'wallet query parameter is required.' })
     }
 
     const user = await findRegisteredUser(walletAddress)
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Registered user not found.',
-      })
+      return res.status(404).json({ success: false, message: 'Registered user not found.' })
     }
 
-    res.json({
-      success: true,
-      data: await buildBinaryTreeResponse(user),
-    })
+    res.json({ success: true, data: await buildBinaryTreeResponse(user) })
   } catch (error) {
     next(error)
   }
 }
-
-

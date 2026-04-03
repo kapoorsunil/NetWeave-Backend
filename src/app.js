@@ -4,6 +4,7 @@ import morgan from 'morgan'
 import { env } from './config/env.js'
 import adminRoutes from './routes/adminRoutes.js'
 import moonpayRoutes from './routes/moonpayRoutes.js'
+import podRoutes from './routes/podRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import walletRoutes from './routes/walletRoutes.js'
 import { errorHandler } from './middleware/errorHandler.js'
@@ -47,8 +48,10 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/moonpay', moonpayRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/pods', podRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/wallet', walletRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
+

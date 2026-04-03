@@ -1,0 +1,24 @@
+{
+  "user": {
+    "_id": "69c751af4dc8003bb98c90ff",
+    "walletAddress": "0xfff852f1ae1a1c58bffc80b8b37acbd1d5750b67",
+    "ancestors": [
+      "0xBBd40E7DDcD441475cc5cdc5057556E266A71fc1",
+      "0xEb1b70A0416c446F9F32D881774ad21d71fbbB57",
+      "0xB0fAD5d0140529C94D43FDA39e918A23B9E5F555"
+    ],
+    "referredBy": "0xBBd40E7DDcD441475cc5cdc5057556E266A71fc1",
+    "treeParent": "0x24dD4fA96c575B0507fAf6cb48399464D9Ea05d1",
+    "username": "jimmyv"
+  },
+  "referrer": {
+    "_id": "69b5585b7fede171f7744395",
+    "walletAddress": "0xBBd40E7DDcD441475cc5cdc5057556E266A71fc1",
+    "username": "lovewinzam"
+  },
+  "treeParent": {
+    "_id": "69ba06724dc8003bb98c31f4",
+    "walletAddress": "0x24dD4fA96c575B0507fAf6cb48399464D9Ea05d1",
+    "username": "kirkarocha"
+  }
+}

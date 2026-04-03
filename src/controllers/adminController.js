@@ -1,4 +1,10 @@
-import { authenticateAdmin, getAdminDashboardSummary, getAdminUserOverview, topUpUserFromAdmin } from '../services/adminService.js'
+import {
+  authenticateAdmin,
+  getAdminDashboardSummary,
+  getAdminRecordSections,
+  getAdminUserOverview,
+  topUpUserFromAdmin,
+} from '../services/adminService.js'
 
 export async function adminLogin(req, res, next) {
   try {
@@ -14,6 +20,7 @@ export async function adminLogin(req, res, next) {
 
     const { token, admin } = await authenticateAdmin(email, password)
     const dashboardSummary = await getAdminDashboardSummary()
+    const recordSections = await getAdminRecordSections()
 
     res.json({
       success: true,
@@ -23,6 +30,7 @@ export async function adminLogin(req, res, next) {
           email: admin.email,
           balance: admin.balance ?? 0,
           dashboardSummary,
+          recordSections,
         },
       },
     })
@@ -34,6 +42,7 @@ export async function adminLogin(req, res, next) {
 export async function adminMe(req, res, next) {
   try {
     const dashboardSummary = await getAdminDashboardSummary()
+    const recordSections = await getAdminRecordSections()
 
     res.json({
       success: true,
@@ -41,7 +50,23 @@ export async function adminMe(req, res, next) {
         email: req.admin.email,
         balance: req.admin.balance ?? 0,
         dashboardSummary,
+        recordSections,
       },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function adminRecords(req, res, next) {
+  try {
+    const walletAddress = req.query.wallet?.trim() || ''
+    const section = req.query.section?.trim() || ''
+    const data = await getAdminRecordSections({ walletAddress, section })
+
+    res.json({
+      success: true,
+      data,
     })
   } catch (error) {
     next(error)
@@ -83,4 +108,3 @@ export async function adminTopUpUser(req, res, next) {
     next(error)
   }
 }
-

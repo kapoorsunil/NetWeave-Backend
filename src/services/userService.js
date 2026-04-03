@@ -1,4 +1,5 @@
 import { TEAM_LEVELS, createEmptyDownlineLevels } from '../constants/team.js'
+import crypto from 'crypto'
 import { env } from '../config/env.js'
 import { WithdrawRequest } from '../models/WithdrawRequest.js'
 import { User } from '../models/User.js'
@@ -8,6 +9,17 @@ function normalizeWallet(walletAddress) {
 }
 
 const walletCollation = { locale: 'en', strength: 2 }
+
+export async function generateUniqueInternalWalletAddress() {
+  while (true) {
+    const walletAddress = `0x${crypto.randomBytes(20).toString('hex')}`
+    const existingUser = await User.findOne({ walletAddress }).collation(walletCollation)
+
+    if (!existingUser) {
+      return walletAddress
+    }
+  }
+}
 
 function toCurrencyUnits(value) {
   return Math.round(Number(value || 0) * 100)
@@ -43,6 +55,16 @@ function getReferralRewardPercent(level) {
 
 function formatRewardPercent(level) {
   return `${getReferralRewardPercent(level)}%`
+}
+
+function getClaimRewardPercent(level) {
+  if (level === 1) return 7
+  if (level === 2) return 4
+  if (level === 3) return 3
+  if (level >= 4 && level <= 10) return 2
+  if (level >= 11 && level <= 16) return 0.5
+  if (level >= 17 && level <= 20) return 0.25
+  return 0
 }
 
 function getPlacementSideForReferralCount(referralCount) {
@@ -181,6 +203,8 @@ export async function ensureAdminUser() {
       $setOnInsert: {
         mainBalance: 0,
         referralBalance: 0,
+        claimedBalance: 0,
+        claimReferralBalance: 0,
         ancestors: [],
         directReferrals: [],
         treeParent: null,
@@ -307,6 +331,45 @@ async function distributeRegistrationReferralRewards(user, registrationAmount) {
   return appliedRewards
 }
 
+export async function distributeClaimProfit(user, profitAmount, claimId) {
+  const profitUnits = toCurrencyUnits(profitAmount)
+  const appliedRewards = []
+  
+  let currentParentWallet = user.treeParent
+  let levelPosition = 1
+
+  while (currentParentWallet && levelPosition <= 20) {
+    const parent = await User.findOne({ walletAddress: currentParentWallet }).collation(walletCollation)
+    if (!parent) break
+
+    const rewardPercent = getClaimRewardPercent(levelPosition)
+    const rewardUnits = Math.round((profitUnits * rewardPercent) / 100)
+
+    if (parent.registrationPaymentDone && rewardUnits > 0) {
+      const creditedAmount = fromCurrencyUnits(rewardUnits)
+      
+      await User.updateOne(
+        { walletAddress: parent.walletAddress },
+        { 
+          $inc: { claimReferralBalance: creditedAmount } 
+        },
+        { collation: walletCollation }
+      )
+
+      appliedRewards.push({
+        recipientWalletAddress: parent.walletAddress,
+        level: levelPosition,
+        amount: creditedAmount,
+      })
+    }
+
+    currentParentWallet = parent.treeParent
+    levelPosition += 1
+  }
+
+  return appliedRewards
+}
+
 async function markRegistrationRewardsDistributed(walletAddress) {
   return User.findOneAndUpdate(
     { walletAddress: walletAddress?.trim() },
@@ -330,6 +393,9 @@ export async function registerUserWithReferral({
   username,
   email,
   country,
+  phoneCountryCode,
+  phoneNumber,
+  accountType,
   passwordHash,
   txHash,
 }) {
@@ -339,6 +405,9 @@ export async function registerUserWithReferral({
   const normalizedUsername = username?.trim()
   const normalizedEmail = email?.trim().toLowerCase()
   const normalizedCountry = country?.trim()
+  const normalizedPhoneCountryCode = phoneCountryCode?.trim()
+  const normalizedPhoneNumber = phoneNumber?.trim()
+  const normalizedAccountType = accountType?.trim() || 'legacy_wallet'
 
   if (!normalizedWallet) {
     throw new Error('Wallet address is required.')
@@ -375,6 +444,18 @@ export async function registerUserWithReferral({
     }
   }
 
+  if (normalizedPhoneCountryCode && normalizedPhoneNumber) {
+    const existingPhone = await User.findOne({
+      phoneCountryCode: normalizedPhoneCountryCode,
+      phoneNumber: normalizedPhoneNumber,
+      walletAddress: { $ne: walletAddress?.trim() },
+    })
+
+    if (existingPhone) {
+      throw new Error('Phone number is already taken.')
+    }
+  }
+
   const referrer = await User.findOne({
     walletAddress: referralAddress?.trim(),
     isRegistered: true,
@@ -399,6 +480,9 @@ export async function registerUserWithReferral({
     username: normalizedUsername?.toLowerCase() || undefined,
     email: normalizedEmail || undefined,
     country: normalizedCountry || undefined,
+    phoneCountryCode: normalizedPhoneCountryCode || undefined,
+    phoneNumber: normalizedPhoneNumber || undefined,
+    accountType: normalizedAccountType,
     passwordHash: passwordHash || undefined,
   }
 
@@ -417,6 +501,8 @@ export async function registerUserWithReferral({
       $setOnInsert: {
         mainBalance: 0,
         referralBalance: 0,
+        claimedBalance: 0,
+        claimReferralBalance: 0,
         treeLeftChild: null,
         treeRightChild: null,
         downlineLevels: createEmptyDownlineLevels(),
@@ -486,6 +572,8 @@ export function buildTeamResponse(user) {
     registrationPaymentDone: user.registrationPaymentDone ?? false,
     mainBalance: user.mainBalance ?? 0,
     referralBalance: user.referralBalance ?? 0,
+    claimedBalance: user.claimedBalance ?? 0,
+    claimReferralBalance: user.claimReferralBalance ?? 0,
     name: user.name || '',
     username: user.username || '',
     email: user.email || '',

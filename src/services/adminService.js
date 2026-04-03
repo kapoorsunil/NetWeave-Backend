@@ -2,7 +2,10 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { Admin } from '../models/Admin.js'
 import { AdminTopUpRecord } from '../models/AdminTopUpRecord.js'
+import { PodPurchase } from '../models/PodPurchase.js'
+import { TopUpRecord } from '../models/TopUpRecord.js'
 import { User } from '../models/User.js'
+import { getEffectiveCycleIndex } from './podService.js'
 import { creditUserMainBalance } from './userService.js'
 
 const FIXED_ADMIN_EMAIL = 'admin@gmail.com'
@@ -10,9 +13,61 @@ const FIXED_ADMIN_PASSWORD = 'Admin@?9ad@fnrhs3uD1'
 const MAX_TOP_UP_PER_WALLET = 1000
 const DEFAULT_ADMIN_BALANCE = 10000
 const walletCollation = { locale: 'en', strength: 2 }
+const POD_LAUNCH_AT = new Date('2026-03-28T11:00:00Z')
+const DAY_MS = 24 * 60 * 60 * 1000
 
 function normalizeWallet(walletAddress) {
   return walletAddress?.trim()
+}
+
+
+
+function getClaimReadyAt(value) {
+  const purchasedAt = new Date(value)
+  if (Number.isNaN(purchasedAt.getTime())) {
+    return null
+  }
+
+  return new Date(purchasedAt.getTime() + 7 * DAY_MS)
+}
+
+function getClaimUnlockCycleIndex(cycleIndex) {
+  const numericCycleIndex = Number(cycleIndex)
+  if (!Number.isFinite(numericCycleIndex)) {
+    return null
+  }
+
+  return numericCycleIndex + 7
+}
+
+function mapPodPurchaseForAdmin(purchase, currentCycleIndex) {
+  const unlockCycleIndex = getClaimUnlockCycleIndex(purchase.cycleIndex)
+  const claimReadyAt = getClaimReadyAt(purchase.purchasedAt)
+  const rewardPercentage = 10
+  const rewardAmountUsd = Number((Number(purchase.amountUsd || 0) * 1.1).toFixed(2))
+
+  return {
+    id: String(purchase._id),
+    walletAddress: purchase.walletAddress,
+    cycleKey: purchase.cycleKey,
+    cycleIndex: purchase.cycleIndex,
+    blockNumber: purchase.blockNumber,
+    epochNumber: purchase.epochNumber,
+    dayNumber: purchase.dayNumber,
+    amountUsd: purchase.amountUsd,
+    podCount: purchase.podCount,
+    balanceSource: purchase.balanceSource,
+    mainAmountUsd: purchase.mainAmountUsd ?? 0,
+    referralAmountUsd: purchase.referralAmountUsd ?? 0,
+    rewardPercentage,
+    rewardAmountUsd,
+    unlockCycleIndex,
+    claimReadyAt,
+    isClaimEnabled: unlockCycleIndex ? currentCycleIndex >= unlockCycleIndex : false,
+    purchasedAt: purchase.purchasedAt,
+    createdAt: purchase.createdAt,
+    updatedAt: purchase.updatedAt,
+  }
 }
 
 export async function ensureAdminAccount() {
@@ -186,3 +241,156 @@ export async function getAdminDashboardSummary() {
   }
 }
 
+export async function getAdminRecordSections({ section = '', walletAddress = '' } = {}) {
+  const normalizedWallet = normalizeWallet(walletAddress)
+  const requestedSection = (section || '').trim().toLowerCase()
+  const currentCycleIndex = await getEffectiveCycleIndex()
+
+  const includeTopUps = !requestedSection || requestedSection === 'topup'
+  const includeAdminTopUps = !requestedSection || requestedSection === 'admin-topup'
+  const includePodPurchases = !requestedSection || requestedSection === 'pod-purchase'
+  const includePaidRegistrations = !requestedSection || requestedSection === 'paid-registration'
+  const includeUnpaidRegistrations = !requestedSection || requestedSection === 'unpaid-registration'
+
+  const [
+    topUpTotals,
+    adminTopUpTotals,
+    podPurchaseTotals,
+    topUpRecords,
+    adminTopUpRecords,
+    podPurchases,
+    paidRegistrations,
+    unpaidRegistrations,
+  ] = await Promise.all([
+    includeTopUps
+      ? TopUpRecord.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalAmount: { $sum: { $ifNull: ['$amount', 0] } },
+              totalCount: { $sum: 1 },
+            },
+          },
+        ])
+      : Promise.resolve([]),
+    includeAdminTopUps
+      ? AdminTopUpRecord.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalAmount: { $sum: { $ifNull: ['$amount', 0] } },
+              totalCount: { $sum: 1 },
+            },
+          },
+        ])
+      : Promise.resolve([]),
+    includePodPurchases
+      ? PodPurchase.aggregate([
+          {
+            $group: {
+              _id: null,
+              totalAmountUsd: { $sum: { $ifNull: ['$amountUsd', 0] } },
+              totalPodCount: { $sum: { $ifNull: ['$podCount', 0] } },
+              totalCount: { $sum: 1 },
+            },
+          },
+        ])
+      : Promise.resolve([]),
+    includeTopUps
+      ? TopUpRecord.find(normalizedWallet ? { walletAddress: normalizedWallet } : {})
+          .collation(walletCollation)
+          .sort({ createdAt: -1 })
+          .lean()
+      : Promise.resolve([]),
+    includeAdminTopUps
+      ? AdminTopUpRecord.find(normalizedWallet ? { walletAddress: normalizedWallet } : {})
+          .collation(walletCollation)
+          .sort({ createdAt: -1 })
+          .lean()
+      : Promise.resolve([]),
+    includePodPurchases
+      ? PodPurchase.find(normalizedWallet ? { walletAddress: normalizedWallet } : {})
+          .collation(walletCollation)
+          .sort({ createdAt: -1 })
+          .lean()
+      : Promise.resolve([]),
+    includePaidRegistrations
+      ? User.find({ registrationPaymentDone: true, isRegistered: true, ...(normalizedWallet ? { walletAddress: normalizedWallet } : {}) })
+          .collation(walletCollation)
+          .sort({ createdAt: -1 })
+          .lean()
+      : Promise.resolve([]),
+    includeUnpaidRegistrations
+      ? User.find({ registrationPaymentDone: false, isRegistered: true, ...(normalizedWallet ? { walletAddress: normalizedWallet } : {}) })
+          .collation(walletCollation)
+          .sort({ createdAt: -1 })
+          .lean()
+      : Promise.resolve([]),
+  ])
+
+  return {
+    topUpRecords: includeTopUps
+      ? {
+          totalAmount: topUpTotals[0]?.totalAmount ?? 0,
+          totalCount: topUpTotals[0]?.totalCount ?? 0,
+          records: topUpRecords.map((record) => ({
+            id: String(record._id),
+            walletAddress: record.walletAddress,
+            source: record.source,
+            amount: record.amount,
+            currency: record.currency,
+            referenceId: record.referenceId,
+            meta: record.meta ?? {},
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+          })),
+        }
+      : null,
+    adminTopUpRecords: includeAdminTopUps
+      ? {
+          totalAmount: adminTopUpTotals[0]?.totalAmount ?? 0,
+          totalCount: adminTopUpTotals[0]?.totalCount ?? 0,
+          records: adminTopUpRecords.map((record) => ({
+            id: String(record._id),
+            adminEmail: record.adminEmail,
+            walletAddress: record.walletAddress,
+            amount: record.amount,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+          })),
+        }
+      : null,
+    podPurchases: includePodPurchases
+      ? {
+          totalAmountUsd: podPurchaseTotals[0]?.totalAmountUsd ?? 0,
+          totalPodCount: podPurchaseTotals[0]?.totalPodCount ?? 0,
+          totalCount: podPurchaseTotals[0]?.totalCount ?? 0,
+          records: podPurchases.map((purchase) => mapPodPurchaseForAdmin(purchase, currentCycleIndex)),
+        }
+      : null,
+    paidRegistrations: includePaidRegistrations
+      ? {
+          totalCount: paidRegistrations.length,
+          records: paidRegistrations.map((user) => ({
+            id: String(user._id),
+            username: user.username || user.name || 'Anonymous',
+            walletAddress: user.walletAddress,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+          })),
+        }
+      : null,
+    unpaidRegistrations: includeUnpaidRegistrations
+      ? {
+          totalCount: unpaidRegistrations.length,
+          records: unpaidRegistrations.map((user) => ({
+            id: String(user._id),
+            username: user.username || user.name || 'Anonymous',
+            walletAddress: user.walletAddress,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+          })),
+        }
+      : null,
+  }
+}
